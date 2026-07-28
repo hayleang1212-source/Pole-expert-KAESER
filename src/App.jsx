@@ -12,7 +12,7 @@ import {
 } from "firebase/auth";
 import { doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, arrayUnion, onSnapshot, serverTimestamp, addDoc, collection } from "firebase/firestore";
 
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzwmR3yGrQhi4BZXjprrkCeD0gSeBZqs3EKjN_9FBIs1y2_Zb3LsBcNzsQSvzGUT-80bw/exec";
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbypM6B9C8jnhsGWDvk9u4bJi3np-Q0qYEbwvHMUQ3KPooSgF1UHoKQu1_qM5-XdsDxQeA/exec";
 
 function blobToBase64(blob) {
   return new Promise((resolve, reject) => {
@@ -49,9 +49,37 @@ async function postToAppsScript(payload) {
 // permet d'envoyer des fichiers de plusieurs centaines de Mo, voire plusieurs
 // Go, sans jamais dépasser la limite de taille d'une requête Apps Script.
 // onProgress(percent) est appelé après chaque morceau si fourni.
+// Devine le type MIME à partir de l'extension du fichier lorsque le navigateur
+// ne le fournit pas (file.type vide) — évite d'envoyer un mauvais type par
+// défaut (ex: "application/pdf" pour un .zip), qui fait échouer l'upload
+// côté serveur avec une erreur "Unknown type".
+const EXTENSION_MIME_TYPES = {
+  pdf: "application/pdf",
+  zip: "application/zip",
+  doc: "application/msword",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  xls: "application/vnd.ms-excel",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ppt: "application/vnd.ms-powerpoint",
+  pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  gif: "image/gif",
+  txt: "text/plain",
+  csv: "text/csv",
+  rar: "application/vnd.rar",
+  "7z": "application/x-7z-compressed",
+};
+
+function guessMimeType(fileName) {
+  const ext = (fileName || "").split(".").pop()?.toLowerCase();
+  return (ext && EXTENSION_MIME_TYPES[ext]) || null;
+}
+
 async function uploadFileToDrive(file, folderId = null, onProgress) {
   const kind = folderId ? "admin" : "piece_jointe";
-  const mimeType = file.type || (folderId ? "application/pdf" : "application/octet-stream");
+  const mimeType = file.type || guessMimeType(file.name) || "application/octet-stream";
   const totalSize = file.size;
   const totalChunks = Math.max(1, Math.ceil(totalSize / UPLOAD_CHUNK_SIZE));
 
@@ -374,17 +402,18 @@ const CATEGORIES = [
       {
         id: "compresseurs-vis", label: "Compresseurs à vis", icon: Server, image: imgCompresseur,
         items: [
-          { id: "sc2-vis", label: "Compresseur SC2", icon: Settings, image: imgCompresseur, driveFolderId: "1QAyqki_IItZ6vOtf2EuADDKmKGbLkFkU",driveFolderIdCodesDefaut: "1mTt31_Kzc17wIWHVsQxay4aPi3IFvOxN",driveFolderIdInstructionTechnique: "1z83YLSzx3WrX8hdJ2I52rvwo-KOynPc3",driveFolderIdServiceInstruction: "1z83YLSzx3WrX8hdJ2I52rvwo-KOynPc3",driveFolderIdInstructionMontage: "12J6_w7WTsIQs8JcMmtnWYxMbPJDA9Y8X"
+          { id: "sc2-vis", label: "Compresseur SC2", icon: Settings, image: imgCompresseur, driveFolderId: "1QAyqki_IItZ6vOtf2EuADDKmKGbLkFkU",driveFolderIdCodesDefaut: "1mTt31_Kzc17wIWHVsQxay4aPi3IFvOxN",driveFolderIdInstructionTechnique: "1z83YLSzx3WrX8hdJ2I52rvwo-KOynPc3",driveFolderIdServiceInstruction: "1z83YLSzx3WrX8hdJ2I52rvwo-KOynPc3",driveFolderIdInstructionMontage: "12J6_w7WTsIQs8JcMmtnWYxMbPJDA9Y8X",
+          driveFolderIdDocuments: "1giNk1A9sRJUpdBuGvY0zbDKSeX6gn1Sh"
           },
-          { id: "sc3-vis", label: "Compresseur SC3", icon: Settings, image: imgCompresseur, driveFolderId: "19Z-TuSJgRa3Aq3btywU2AsdT746WJwtX",driveFolderIdCodesDefaut: "1PqOMKKr2GeUnIfp2DscllnaQ_L-NFU43",driveFolderIdInstructionTechnique: "1z83YLSzx3WrX8hdJ2I52rvwo-KOynPc3",driveFolderIdServiceInstruction: "1z83YLSzx3WrX8hdJ2I52rvwo-KOynPc3", driveFolderIdInstructionMontage: "12J6_w7WTsIQs8JcMmtnWYxMbPJDA9Y8X"
-               
+          { id: "sc3-vis", label: "Compresseur SC3", icon: Settings, image: imgCompresseur, driveFolderId: "19Z-TuSJgRa3Aq3btywU2AsdT746WJwtX",driveFolderIdCodesDefaut: "1PqOMKKr2GeUnIfp2DscllnaQ_L-NFU43",driveFolderIdInstructionTechnique: "1z83YLSzx3WrX8hdJ2I52rvwo-KOynPc3",driveFolderIdServiceInstruction: "1z83YLSzx3WrX8hdJ2I52rvwo-KOynPc3", driveFolderIdInstructionMontage: "12J6_w7WTsIQs8JcMmtnWYxMbPJDA9Y8X",
+          driveFolderIdDocuments: "1giNk1A9sRJUpdBuGvY0zbDKSeX6gn1Sh"
           },
-          { id: "scb-vis", label: "Compresseur SCB", icon: Settings, image: imgCompresseur, driveFolderId: "1PqDpXZQGdGXvwpV421WyY9scanMmCQhC",driveFolderIdCodesDefaut: "1Qhv79NL1RaAw-J1oR4uUbTfeqbjZmX7C",driveFolderIdInstructionTechnique: "1z83YLSzx3WrX8hdJ2I52rvwo-KOynPc3",driveFolderIdServiceInstruction: "1z83YLSzx3WrX8hdJ2I52rvwo-KOynPc3", driveFolderIdInstructionMontage: "12J6_w7WTsIQs8JcMmtnWYxMbPJDA9Y8X"
-          
+          { id: "scb-vis", label: "Compresseur SCB", icon: Settings, image: imgCompresseur, driveFolderId: "1PqDpXZQGdGXvwpV421WyY9scanMmCQhC",driveFolderIdCodesDefaut: "1Qhv79NL1RaAw-J1oR4uUbTfeqbjZmX7C",driveFolderIdInstructionTechnique: "1z83YLSzx3WrX8hdJ2I52rvwo-KOynPc3",driveFolderIdServiceInstruction: "1z83YLSzx3WrX8hdJ2I52rvwo-KOynPc3", driveFolderIdInstructionMontage: "12J6_w7WTsIQs8JcMmtnWYxMbPJDA9Y8X",
+          driveFolderIdDocuments: "1giNk1A9sRJUpdBuGvY0zbDKSeX6gn1Sh"
           },
         ],
       },
-      { id: "vis-seche", label: "Vis sèche", icon: Server, image: imgVisSeche, driveFolderId: "1TDsbAxJXJ0k55rM7EbExljTInHqZCtbh", driveFolderIdCodesDefaut: "1YcFi78aP2YlWC8lw6zoki9gTdrfm9DOb" ,driveFolderIdInstructionTechnique: "1TTViFu40NERinMyqJFS2DJPU62giKX31",driveFolderIdServiceInstruction: "10s4eqnK0uvtQHDOvBR3S2dzvAwqPoom5", driveFolderIdInstructionMontage: "1PnUiU6CSE1N_fYuuC2PWvu3Fv0pBzswA",
+      { id: "vis-seche", label: "Vis sèche", icon: Server, image: imgVisSeche, driveFolderId: "1TDsbAxJXJ0k55rM7EbExljTInHqZCtbh", driveFolderIdCodesDefaut: "1YcFi78aP2YlWC8lw6zoki9gTdrfm9DOb" ,driveFolderIdInstructionTechnique: "1TTViFu40NERinMyqJFS2DJPU62giKX31",driveFolderIdServiceInstruction: "10s4eqnK0uvtQHDOvBR3S2dzvAwqPoom5", driveFolderIdInstructionMontage: "1PnUiU6CSE1N_fYuuC2PWvu3Fv0pBzswA", driveFolderIdDocuments: "1BmcWZTKiWYTg8Jh4h3NjLTFO5X-53Nl3",
         schemas: [
           { label: "Température / pression sécheur RD", src: imgSchemaTemperatureRD },
           { label: "PID Vis sèche ref. eau", src: imgSchemaPidEau },
@@ -395,14 +424,15 @@ const CATEGORIES = [
 
 
       
-      { id: "surpresseur-vis", label: "Surpresseur à vis", icon: Gauge, image: imgSurpresseur, driveFolderId: "1p8bsMe2iw688-mmNW9ea8uPZhrrLxNBV" ,driveFolderIdCodesDefaut: "1y5OppgzpaFjvC7Qq9iMgnamyot1x9h7k" ,driveFolderIdInstructionTechnique: "1u_YkofGRa2q_LS0RrqWPrYIWDIzvxLRd",driveFolderIdServiceInstruction: "1k5b50Pex_F2zS3rTClCpO_Dvdz9oq77o", driveFolderIdInstructionMontage: "1aMbCMW8g2cREDbNrtaMEEYI6GkmqpyUO"    
+      { id: "surpresseur-vis", label: "Surpresseur à vis", icon: Gauge, image: imgSurpresseur, driveFolderId: "1p8bsMe2iw688-mmNW9ea8uPZhrrLxNBV" ,driveFolderIdCodesDefaut: "1y5OppgzpaFjvC7Qq9iMgnamyot1x9h7k" ,driveFolderIdInstructionTechnique: "1u_YkofGRa2q_LS0RrqWPrYIWDIzvxLRd",driveFolderIdServiceInstruction: "1k5b50Pex_F2zS3rTClCpO_Dvdz9oq77o", driveFolderIdInstructionMontage: "1aMbCMW8g2cREDbNrtaMEEYI6GkmqpyUO", driveFolderIdDocuments: "1brzVMZH9u8IRAsBWo0CAFJs-UnND1Zp1"    
       },
       
       { id: "mobilair", label: "Mobilair", icon: Truck, image: imgMobilair, driveFolderId: "18oDG68eFeXA_OV8LrHMFR6nnp4VpWYSO",
-  driveFolderIdCodesDefaut: "12cBjWHm8gQ6mQPTwVZ83GgbPx4a0UE4X" ,driveFolderIdInstructionTechnique: "1MDyufp0LGVIJNbgpjDeedK4TLvq2dOtf",driveFolderIdServiceInstruction: "1RIPmBkySMyq2K02JRq9nmAI5-7GNBRbH", driveFolderIdInstructionMontage: "17V1qV0uy_6R4G7T3pmzA-izRlm4pmqNw"       
+  driveFolderIdCodesDefaut: "12cBjWHm8gQ6mQPTwVZ83GgbPx4a0UE4X" ,driveFolderIdInstructionTechnique: "1MDyufp0LGVIJNbgpjDeedK4TLvq2dOtf",driveFolderIdServiceInstruction: "1RIPmBkySMyq2K02JRq9nmAI5-7GNBRbH", driveFolderIdInstructionMontage: "17V1qV0uy_6R4G7T3pmzA-izRlm4pmqNw",
+  driveFolderIdDocuments: "1ICSy3pkF3-bR6v6UcKWb3yxV3CpKdRLU"
       },
  
-      { id: "piston", label: "Piston", icon: Disc, image: imgPiston, driveFolderId: "1UG8Gd2Lb0682uhR1EltjOAU9tkhhjZMf", driveFolderIdCodesDefaut: "1_hhjsl7E6PT3mDCJXVatfG7aH-SFaPF-", driveFolderIdInstructionTechnique: "1bE65kkKKOElA86jFm82P7DDIaXI3-tpj",driveFolderIdServiceInstruction: "1ZCMgH9iDGmb5FVKxxxVBtIsmEMPjXS0C", driveFolderIdInstructionMontage: "13aOt4_-F8cEzSaKDKRtrMFuS9ZcliumN" 
+      { id: "piston", label: "Piston", icon: Disc, image: imgPiston, driveFolderId: "1UG8Gd2Lb0682uhR1EltjOAU9tkhhjZMf", driveFolderIdCodesDefaut: "1_hhjsl7E6PT3mDCJXVatfG7aH-SFaPF-", driveFolderIdInstructionTechnique: "1bE65kkKKOElA86jFm82P7DDIaXI3-tpj",driveFolderIdServiceInstruction: "1ZCMgH9iDGmb5FVKxxxVBtIsmEMPjXS0C", driveFolderIdInstructionMontage: "13aOt4_-F8cEzSaKDKRtrMFuS9ZcliumN", driveFolderIdDocuments: "1urB9RdhQoZTWO5qoaPZlRkhOgaZU7x4T" 
       },
       
       {
@@ -457,7 +487,7 @@ const CATEGORIES = [
       
       
       },
-      { id: "variateur", label: "Variateur", icon: SlidersHorizontal, image: imgVariateur,driveFolderId: "1C9I8HQCRiwkLC9ABb_n_BhVl4KmXarxy",driveFolderIdCodesDefaut: "194uOKt8oOGrYZ6pgKpC5TdAIzDrrrEd1",driveFolderIdInstructionTechnique: "1Un3FfzsZBSqLJndSJ-n5qbLGvnezLRqS",driveFolderIdServiceInstruction: "1xG5Kl7zkljhduCY78FlUqd1luuvM3jHN", driveFolderIdInstructionMontage: "1NQ7q2HayMobzMZEV3o50PJpwOYAM6ABZ"      
+      { id: "variateur", label: "Variateur", icon: SlidersHorizontal, image: imgVariateur,driveFolderId: "1C9I8HQCRiwkLC9ABb_n_BhVl4KmXarxy",driveFolderIdCodesDefaut: "194uOKt8oOGrYZ6pgKpC5TdAIzDrrrEd1",driveFolderIdInstructionTechnique: "1Un3FfzsZBSqLJndSJ-n5qbLGvnezLRqS",driveFolderIdServiceInstruction: "1xG5Kl7zkljhduCY78FlUqd1luuvM3jHN", driveFolderIdInstructionMontage: "1NQ7q2HayMobzMZEV3o50PJpwOYAM6ABZ", driveFolderIdDocuments: "1xKZikqpvSLuzfzl1BD5axnnw6BhYR0cP"      
       },
            
       { id: "huile", label: "Huile", icon: Droplet, image: imgHuile, driveFolderIdInstructionTechnique: "1vD-kDI5DyKA6PQHMqgWtUgAJPo62Nfsu" },
@@ -676,7 +706,7 @@ export default function App() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: COLORS.bg, color: COLORS.navy, fontFamily: "'Inter', system-ui, sans-serif", display: "flex", flexDirection: "column" }}>
+    <div style={{ minHeight: "100vh", background: COLORS.bg, color: COLORS.navy, fontFamily: "'Inter', system-ui, sans-serif", display: "flex", flexDirection: "column", overflowX: "hidden" }}>
       <div style={{ background: "#FFC800", padding: isMobile ? "10px 12px" : "6px 24px 6px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: isMobile ? "8px" : "20px", minHeight: "72px", flexWrap: isMobile ? "wrap" : "nowrap", boxSizing: "border-box", position: "relative" }}>
         <img src={logo} alt="Kaeser Compresseurs" style={{ height: isMobile ? "36px" : "100%", width: "auto", display: "block", background: "transparent", flexShrink: 0, order: 1 }} />
         <div style={{ display: "flex", alignItems: "center", gap: isMobile ? "6px" : "10px", flexShrink: 0, flexWrap: "wrap", justifyContent: "flex-end", order: 2 }}>
@@ -780,6 +810,22 @@ function SubMenu({ category, onSelect }) {
     onSelect(item);
   };
 
+  const cardsGrid = (
+    <div style={showSideIcon ? { display: "flex", flexWrap: "wrap", gap: "18px", justifyContent: category.id === "garantie" ? "flex-start" : "center" } : gridStyle}>
+      {filteredItems.map((item) => (
+        <Card 
+          key={item.id} 
+          icon={item.icon} 
+          image={item.image} 
+          label={item.label} 
+          iconColor={category.itemIconColor} 
+          onClick={() => handleItemClick(item)} 
+          imageSize={item.id === "sigma-scm" ? 100 : undefined}
+        />
+      ))}
+    </div>
+  );
+
   const content = (
     <>
       {category.searchable && (
@@ -798,19 +844,7 @@ function SubMenu({ category, onSelect }) {
         </div>
       ) : (
         <>
-          <div style={showSideIcon ? { display: "flex", flexWrap: "wrap", gap: "18px", justifyContent: category.id === "garantie" ? "flex-start" : "center" } : gridStyle}>
-            {filteredItems.map((item) => (
-              <Card 
-                key={item.id} 
-                icon={item.icon} 
-                image={item.image} 
-                label={item.label} 
-                iconColor={category.itemIconColor} 
-                onClick={() => handleItemClick(item)} 
-                imageSize={item.id === "sigma-scm" ? 100 : undefined}
-              />
-            ))}
-          </div>
+          {cardsGrid}
           {category.searchable && filteredItems.length === 0 && <p style={{ color: COLORS.textMuted, fontSize: "14px" }}>Aucun résultat pour « {query} ».</p>}
           {category.id === "garantie" && (
             <div style={{ marginTop: "22px" }}>
@@ -896,6 +930,17 @@ function DetailPage({ category, item }) {
             <SimulateurButton item={item} onOpen={() => setShowSimulator(true)} />
           </div>
         )}
+        {hasSchemas && (
+          <div style={{ marginTop: "18px", width: "100%" }}>
+            <h3 style={{ fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.06em", color: COLORS.textMuted, marginBottom: "10px" }}>Schémas techniques</h3>
+            <CustomSelect
+              value={selectedSchemaId}
+              onChange={setSelectedSchemaId}
+              placeholder="Choisir un schéma…"
+              options={item.schemas.map((s) => ({ value: s.label, label: s.label }))}
+            />
+          </div>
+        )}
       </div>
       <div style={{ flex: 1, minWidth: 0, width: "100%", maxWidth: isMobile ? "100%" : "600px" }}>
         {item.id === "huile" ? (
@@ -925,16 +970,8 @@ function DetailPage({ category, item }) {
             {item.driveFolderIdInstructionMontage && (
               <DocumentSection label="Instruction de montage" driveFolderId={item.driveFolderIdInstructionMontage} localFolderId={`${item.id}/instruction-montage`} produit={item.label} categorie={category.label} />
             )}
-            {hasSchemas && (
-              <div style={{ marginTop: "22px" }}>
-                <h3 style={{ fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.06em", color: COLORS.textMuted, marginBottom: "10px" }}>Schémas techniques</h3>
-                <CustomSelect
-                  value={selectedSchemaId}
-                  onChange={setSelectedSchemaId}
-                  placeholder="Choisir un schéma…"
-                  options={item.schemas.map((s) => ({ value: s.label, label: s.label }))}
-                />
-              </div>
+            {item.driveFolderIdDocuments && (
+              <DocumentSection label="DIAGNOSTIC/ DEPANNAGE" driveFolderId={item.driveFolderIdDocuments} localFolderId={`${item.id}/documents`} produit={item.label} categorie={category.label} />
             )}
           </>
         )}
@@ -2386,7 +2423,11 @@ function AdminUploadModal({ categories, onClose }) {
 
           <div>
             <label style={adminLabelStyle}>Fichier</label>
-            <input type="file" onChange={(e) => setFile(e.target.files[0] || null)} style={{ width: "100%" }} />
+            <label style={{ display: "flex", alignItems: "center", gap: "10px", width: "100%", padding: "8px 12px", borderRadius: "8px", border: `1px solid ${COLORS.cardBorder}`, background: "#FFFFFF", cursor: "pointer", boxSizing: "border-box" }}>
+              <span style={{ flexShrink: 0, padding: "6px 12px", borderRadius: "6px", border: `1px solid ${COLORS.cardBorder}`, background: "#F5F5F5", fontSize: "12.5px", fontWeight: 600, color: COLORS.navy }}>Choisir un fichier</span>
+              <span style={{ fontSize: "13px", color: file ? COLORS.navy : COLORS.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{file ? file.name : "Aucun fichier choisi"}</span>
+              <input type="file" onChange={(e) => setFile(e.target.files[0] || null)} style={{ position: "absolute", width: "1px", height: "1px", padding: 0, margin: "-1px", overflow: "hidden", clip: "rect(0,0,0,0)", border: 0 }} />
+            </label>
           </div>
 
           {uploading && (
