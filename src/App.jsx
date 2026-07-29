@@ -10,7 +10,7 @@ import {
   signOut,
   sendPasswordResetEmail,
 } from "firebase/auth";
-import { doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, arrayUnion, onSnapshot, serverTimestamp, addDoc, collection } from "firebase/firestore";
+import { doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, arrayUnion, onSnapshot, serverTimestamp, addDoc, collection, query, where } from "firebase/firestore";
 
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbypM6B9C8jnhsGWDvk9u4bJi3np-Q0qYEbwvHMUQ3KPooSgF1UHoKQu1_qM5-XdsDxQeA/exec";
 
@@ -607,18 +607,30 @@ export default function App() {
 
   useEffect(() => {
     if (!user) return;
-    const unsubscribe = onSnapshot(collection(db, "expertRequests"), (snap) => {
-      const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      list.sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
-      setExpertRequests(list);
-    });
+    // Pour un utilisateur non-admin, on interroge directement ses propres demandes (where
+    // requestedBy == son e-mail) plutôt que de lire toute la collection puis filtrer côté
+    // client : si les règles Firestore restreignent la lecture aux demandes dont on est
+    // l'auteur (ou aux admins), un onSnapshot sans "where" correspondant échoue silencieusement
+    // pour un non-admin (permission-denied, sans gestionnaire d'erreur), ce qui vidait à tort
+    // "En cours" ET "Historique" même quand l'utilisateur avait bien des demandes.
+    const expertRequestsQuery = isAdmin
+      ? collection(db, "expertRequests")
+      : query(collection(db, "expertRequests"), where("requestedBy", "==", user.email));
+    const unsubscribe = onSnapshot(
+      expertRequestsQuery,
+      (snap) => {
+        const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        list.sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+        setExpertRequests(list);
+      },
+      (err) => {
+        console.error("Erreur d'écoute expertRequests (droits Firestore ?) :", err);
+      }
+    );
     return unsubscribe;
-  }, [user]);
+  }, [user, isAdmin]);
 
-  const visibleExpertRequests = useMemo(
-    () => (isAdmin ? expertRequests : expertRequests.filter((r) => r.requestedBy === user?.email)),
-    [expertRequests, isAdmin, user]
-  );
+  const visibleExpertRequests = expertRequests;
   const pendingExpertRequestsCount = useMemo(
     () => visibleExpertRequests.filter((r) => !r.archived).length,
     [visibleExpertRequests]
@@ -2025,7 +2037,7 @@ function ExpertRequestCard({ request, isAdmin, onArchive, archiving }) {
               onInput={syncReponseState}
               onDoubleClick={handleReponseEditorDoubleClick}
               data-placeholder="Écrivez votre réponse, elle sera envoyée par e-mail au demandeur…"
-              style={{ ...formInputStyle, minHeight: "80px", maxHeight: "300px", overflowY: "auto", fontFamily: "inherit", lineHeight: 1.5, cursor: "text" }}
+              style={{ ...formInputStyle, minHeight: "180px", maxHeight: "480px", overflowY: "auto", fontFamily: "inherit", lineHeight: 1.5, cursor: "text" }}
             />
             <span style={{ fontSize: "11.5px", color: COLORS.textMuted, fontStyle: "italic", display: "block", marginTop: "4px" }}>
               Collez une capture d'écran (Ctrl+V) directement dans la réponse ci-dessus
@@ -2181,7 +2193,7 @@ function ExpertRequestsModal({ requests, isAdmin, currentUserEmail, onClose }) {
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(11,31,58,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: "20px" }} onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: "#FFFFFF", borderRadius: "16px", maxWidth: "640px", width: "100%", maxHeight: "85vh", overflow: "auto", padding: "28px", position: "relative" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "#FFFFFF", borderRadius: "16px", maxWidth: "900px", width: "100%", maxHeight: "92vh", overflow: "auto", padding: "28px", position: "relative" }}>
         <button onClick={onClose} aria-label="Fermer" style={{ position: "absolute", top: "16px", right: "16px", background: "none", border: "none", cursor: "pointer", color: COLORS.textMuted }}><X size={20} /></button>
         <h2 style={{ fontSize: "20px", fontWeight: 800, marginBottom: "6px", display: "flex", alignItems: "center", gap: "8px" }}>
           <ClipboardList size={20} color={COLORS.gold} />Demandes aux experts
